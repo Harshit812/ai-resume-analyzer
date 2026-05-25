@@ -1,73 +1,126 @@
-# React + TypeScript + Vite
+# AI Resume Analyzer
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+An AI-powered tool that analyzes your resume against a job description, gives you an ATS match score, highlights keyword gaps, and generates a tailored professional summary — all streamed in real time.
 
-Currently, two official plugins are available:
+![AI Resume Analyzer](src/assets/hero.png)
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+---
 
-## React Compiler
+## What it does
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+1. **Upload your resume** (PDF) via drag-and-drop or file picker
+2. **Paste a job description** into the text area
+3. Hit **Analyze Match** — the AI streams its analysis live as it runs
+4. Get back:
+   - **ATS Match Score** (0–100) with color-coded feedback
+   - **Matched Keywords** — skills and terms already in your resume
+   - **Missing Keywords** — important JD terms absent from your resume
+   - **Strengths** — 3–5 specific points where your resume aligns well
+   - **Improvements** — 3–5 actionable suggestions to close the gap
+   - **Tailored Professional Summary** — a rewritten 3-sentence summary optimized for the role, with a one-click copy button
 
-## Expanding the ESLint configuration
+---
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+## Tech stack
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+| Layer | Technology |
+|---|---|
+| Frontend | React 19, TypeScript, Vite 8 |
+| Styling | Custom CSS (no UI library) |
+| PDF parsing | `pdf-parse` |
+| AI model | Llama 3.3 70B Versatile via Groq API |
+| Streaming | Server-Sent Events (SSE) |
+| Backend | Vercel Serverless Function (`api/analyze.ts`) |
+| Deployment | Vercel |
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+---
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+## Project structure
+
+```
+frontend/
+├── api/
+│   └── analyze.ts        # Vercel serverless function — PDF parse + Groq SSE stream
+├── src/
+│   ├── App.tsx            # Main UI — form, streaming display, results
+│   ├── App.css            # All styles
+│   └── main.tsx           # React entry point
+├── public/
+│   └── favicon.svg
+├── vercel.json            # Routing + function config
+├── vite.config.ts
+└── package.json
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+---
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+## How it works
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
 ```
+Browser                     Vercel Edge / Serverless
+  |                                  |
+  |-- POST /api/analyze ------------>|
+  |   { resumeBase64, jobDesc }      |
+  |                                  |-- pdf-parse extracts resume text
+  |                                  |-- Groq streams Llama 3.3 70B response
+  |<-- SSE: { type: "delta", text } -|  (tokens arrive in real time)
+  |<-- SSE: { type: "done", result } |  (parsed JSON on completion)
+```
+
+The serverless function:
+1. Decodes the base64 PDF and extracts plain text with `pdf-parse`
+2. Sends a structured prompt to Groq's `llama-3.3-70b-versatile` with `stream: true`
+3. Forwards each token delta to the browser as an SSE event
+4. On stream completion, parses the accumulated JSON and emits a final `done` event with the full structured result
+
+---
+
+## Getting started locally
+
+### Prerequisites
+
+- Node.js 18+
+- A [Groq API key](https://console.groq.com/) (free tier available)
+
+### Install & run
+
+```bash
+cd frontend
+npm install
+```
+
+Create a `.env.local` file:
+
+```
+GROQ_API_KEY=your_groq_api_key_here
+```
+
+Run the dev server (Vercel CLI handles the serverless function locally):
+
+```bash
+npx vercel dev
+```
+
+Then open [http://localhost:3000](http://localhost:3000).
+
+---
+
+## Deployment
+
+This project is configured for zero-config deployment on Vercel. The `frontend/` directory is the Vercel root.
+
+```bash
+vercel --prod
+```
+
+Set the `GROQ_API_KEY` environment variable in your Vercel project settings.
+
+The `vercel.json` routes all non-API traffic to `index.html` (SPA fallback) and sets a 30-second timeout on the analyze function to handle longer resumes.
+
+---
+
+## Environment variables
+
+| Variable | Description |
+|---|---|
+| `GROQ_API_KEY` | Your Groq API key — used server-side only, never exposed to the browser |
