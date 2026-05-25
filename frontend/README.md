@@ -1,5 +1,7 @@
 # AI Resume Analyzer
 
+**Live demo: [ai-resume-analyzer-gilt-phi.vercel.app](https://ai-resume-analyzer-gilt-phi.vercel.app/)**
+
 An AI-powered tool that analyzes your resume against a job description, gives you an ATS match score, highlights keyword gaps, and generates a tailored professional summary — all streamed in real time.
 
 ![AI Resume Analyzer](src/assets/hero.png)
@@ -38,18 +40,22 @@ An AI-powered tool that analyzes your resume against a job description, gives yo
 ## Project structure
 
 ```
-frontend/
-├── api/
-│   └── analyze.ts        # Vercel serverless function — PDF parse + Groq SSE stream
-├── src/
-│   ├── App.tsx            # Main UI — form, streaming display, results
-│   ├── App.css            # All styles
-│   └── main.tsx           # React entry point
-├── public/
-│   └── favicon.svg
-├── vercel.json            # Routing + function config
-├── vite.config.ts
-└── package.json
+ai-resume-analyzer/
+├── frontend/                   # Vercel root — React app + serverless API
+│   ├── api/
+│   │   └── analyze.ts          # Vercel serverless function — PDF parse + Groq SSE stream
+│   ├── src/
+│   │   ├── App.tsx             # Main UI — form, streaming display, results
+│   │   ├── App.css             # All styles
+│   │   └── main.tsx            # React entry point
+│   ├── public/
+│   │   └── favicon.svg
+│   ├── vercel.json             # Routing + function config
+│   ├── vite.config.ts
+│   └── package.json
+└── backend/                    # Standalone Express server (local dev alternative)
+    └── src/
+        └── index.ts            # Express + multer + Groq SSE — same logic, multipart upload
 ```
 
 ---
@@ -72,6 +78,21 @@ The serverless function:
 2. Sends a structured prompt to Groq's `llama-3.3-70b-versatile` with `stream: true`
 3. Forwards each token delta to the browser as an SSE event
 4. On stream completion, parses the accumulated JSON and emits a final `done` event with the full structured result
+
+---
+
+## Express backend (local alternative)
+
+The `backend/` folder contains a standalone Express server that mirrors the Vercel function's logic. It uses `multer` for multipart file uploads instead of base64, making it useful for local development without the Vercel CLI.
+
+```bash
+cd backend
+npm install
+# add GROQ_API_KEY to backend/.env
+npx ts-node src/index.ts   # runs on http://localhost:3001
+```
+
+The production deployment uses the Vercel serverless function in `frontend/api/`.
 
 ---
 
